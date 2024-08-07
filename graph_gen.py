@@ -127,7 +127,7 @@ def time_as_weight(graph: nx.DiGraph, slopes: dict):
     
 def save_graph(G, filename):
     """Save a graph in csv format."""
-    with open(filename, "w") as f:
+    with open(f"{filename}", "w") as f:
         writer = csv.writer(f, delimiter=' ')
         for (u, v, d) in G.edges.data():
             writer.writerow([u, v, d['weight'] if 'weight' in d else 0, d['length'] if 'length' in d else 0])
@@ -135,29 +135,35 @@ def save_graph(G, filename):
 def load_graph(filename):
     """load a graph from csv file."""
     graph: nx.DiGraph = nx.DiGraph()
-    with open(filename, "r") as f:
+    with open(f"{filename}", "r") as f:
         reader = csv.reader(f, delimiter=' ')
         for row in reader:
             graph.add_edge(int(row[0]), int(row[1]), weight=float(row[2]), length=float(row[3]))
     return graph
 
 
-def lol1():
+def lol1(n, x, y, tot):
     global N
     global dim
-    N = 0
-    df = pd.read_csv("height_map_964_N0_real.csv")
+    global MAX_X
+    global MAX_Y
+    global MAX_TOT
+    N = n
+    MAX_X = x
+    MAX_Y = y
+    MAX_TOT = tot
+    df = pd.read_csv(f"data/height_map_964_N{N}_real.csv")
     grid = df.to_numpy()
     dim = grid.shape[0]
     print(f"shape is {grid.shape}")
     graph = generate_graph(grid)
     # _save_graph(graph, "height_map_964_N0_real.json")
-    save_graph(graph, "graph_964_N0_real.csv")
+    save_graph(graph, f"data/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
 
-def lol2():
-    nG = load_graph("graph_964_N0_real.csv")
+def lol2(n, x, y, tot):
+    nG = load_graph(f"data/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
         
 if __name__ == '__main__':
-    lol2()
+    lol1(1, 2, 2, 3)
     
     
