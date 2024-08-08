@@ -6,7 +6,7 @@ import csv
 import pandas as pd 
 
 N = 0
-filename = "data/LA-CARTE-964.tif"
+filename = "data/maps/LA-CARTE-964.tif"
 
 def true_height(value: int) -> float:
     return value / 128 * 418
@@ -89,8 +89,9 @@ def start(x):
                 new_height_map[i, j] = pixels_height[row, col]
 
     grid_interpolate(new_height_map, N)
+    new_height_map = np.round(new_height_map, 2)
     df = pd.DataFrame(new_height_map)
-    df.to_csv(f"data/height_map_964_N{N}_real.csv", index=False)
+    df.to_csv(f"data/maps/height_map_964_N{N}_real.csv", index=False)
     
 if __name__ == '__main__':
-    start(2)
+    start(0)
