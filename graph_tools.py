@@ -136,10 +136,11 @@ def time_as_weight(graph: nx.DiGraph, slopes: dict):
     For now, let's consider that `slopes` contains time per meter for different slopes.
     """
     targets = sorted(list(slopes.keys()))
+    heights = nx.get_node_attributes(graph, 'height')
     for (u, v, d) in graph.edges.data():
         graph.edges.data()
-        h1 = graph.nodes[u]['height']
-        h2 = graph.nodes[v]['height']
+        h1 = heights[u]
+        h2 = heights[v]
         angle = heights_to_slope(h1, h2)
         i = binary_search(targets, angle)
         graph[u][v]['weight'] = slopes[targets[i]] * d['length']

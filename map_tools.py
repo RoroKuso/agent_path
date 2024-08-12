@@ -94,4 +94,4 @@ def start(x):
     df.to_csv(f"data/maps/height_map_964_N{N}_real.csv", index=False)
     
 if __name__ == '__main__':
-    start(0)
+    start(1)
