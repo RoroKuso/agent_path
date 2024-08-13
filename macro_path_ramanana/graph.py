@@ -165,11 +165,14 @@ def get_path(graph: nx.DiGraph, start: int, end: int) -> Tuple:
         
     return (shortest_path, suspicious_nodes, precautious_nodes), path_duration
 
+def node_to_index(u, dim):
+    return (u // dim, u % dim)
+
 def path_viz(background, path, interval, weights, output_path=None, color=[255, 0, 0]):
     """Print the path to a png map and save it."""
     # if it is not already in RGB, transform the image to RGB by copying the first channel 3 times
     # path, suspicious_nodes, precautious_nodes = path
-    radius = 2
+    radius = 1
     if len(background.shape) == 2:
         background = np.stack((background, background, background), axis=2)
     rows, cols, _ = background.shape
@@ -177,7 +180,7 @@ def path_viz(background, path, interval, weights, output_path=None, color=[255, 
     curr_segment_duration = 0
     path_matrix = np.zeros((rows, cols, 3))
     for i, node_id in enumerate(path[:-1]):
-        row, col = node_to_row_col(node_id, cols)
+        row, col = node_to_index(node_id, cols)
         path_color = color
         duration = weights[(node_id, path[i+1])]
         curr_segment_duration += duration
@@ -187,17 +190,17 @@ def path_viz(background, path, interval, weights, output_path=None, color=[255, 
                     if j**2 + k**2 <= radius**2:
                         path_matrix[row + j, col + k] = path_color
 
-        # If the current segment is longer than the interval, color all the pixels around the current node
-        checkpoint_radius = 3 * radius
-        if curr_segment_duration >= interval:
-            curr_segment_duration = 0
-            # If the current node is not suspicious or precutious, color the pixels around it with the right color:
-            if True: # node_id not in suspicious_nodes or True: # and node_id not in precautious_nodes:
-                for j in range(-checkpoint_radius, checkpoint_radius + 1):
-                    for k in range(- checkpoint_radius, checkpoint_radius + 1):
-                        if 0 <= row + j < rows and 0 <= col + k < cols:
-                            if j**2 + k**2 <= checkpoint_radius**2:
-                                path_matrix[row + j, col + k] = path_color
+        # # If the current segment is longer than the interval, color all the pixels around the current node
+        # checkpoint_radius = 3 * radius
+        # if curr_segment_duration >= interval:
+        #     curr_segment_duration = 0
+        #     # If the current node is not suspicious or precutious, color the pixels around it with the right color:
+        #     if True: # node_id not in suspicious_nodes or True: # and node_id not in precautious_nodes:
+        #         for j in range(-checkpoint_radius, checkpoint_radius + 1):
+        #             for k in range(- checkpoint_radius, checkpoint_radius + 1):
+        #                 if 0 <= row + j < rows and 0 <= col + k < cols:
+        #                     if j**2 + k**2 <= checkpoint_radius**2:
+        #                         path_matrix[row + j, col + k] = path_color
 
         # Mark the origin and the end of the path by a big square:
         if i == 0 or i == len(path) - 2:
@@ -235,10 +238,18 @@ def compute_path_distance(path):
         length += distance
     return length
 
-def generate_path_on_background(backgrounds, fwd_path, bwd_path, interval, output_dir, weights):
+
+def generate_path_on_background(backgrounds, fwd_path, bwd_path, interval, output_dir, weights, N=0):
     """Generate pngs containing a map and paths."""
     for background in backgrounds:
         bg = load_image(background)
+        dim = bg.shape[0] + N * (bg.shape[0]-1)
+        new_bg = np.zeros((dim, dim, 3))
+        for i in range(dim):
+            for j in range(dim):
+                row = i // (N+1)
+                col = j // (N+1)
+                new_bg[i, j] = bg[row, col]
         ospath = os.path.join(output_dir, os.path.basename(background).split('.')[0] + '.png')
         path_viz(bg, bwd_path, interval, weights, ospath, color=[0, 0, 255])
         bg = load_image(ospath)

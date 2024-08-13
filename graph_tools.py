@@ -33,8 +33,8 @@ def index_to_node(i, j):
 def node_to_index(u):
     return (u // dim, u % dim)
 
-def heights_to_slope(a, b):
-    rad = np.arctan(b / a)
+def heights_to_slope(a, b, d):
+    rad = np.arcsin((b-a)/d)
     ret = rad * 180 / np.pi
     return ret
 
@@ -129,12 +129,27 @@ def time_as_weight(graph: nx.DiGraph, slopes: dict):
     targets = sorted(list(slopes.keys()))
     heights = nx.get_node_attributes(graph, 'height')
     for (u, v, d) in graph.edges.data():
-        graph.edges.data()
         h1 = heights[u]
         h2 = heights[v]
-        angle = heights_to_slope(h1, h2)
+        angle = heights_to_slope(h1, h2, d['length'])
         i = binary_search(targets, angle)
         graph[u][v]['weight'] = slopes[targets[i]] * d['length']
+        
+def torque_per_meter_as_weight(graph: nx.DiGraph, slopes2val: dict):
+    """
+    Updates the weight of the edges with torque / distance.
+    """
+    targets = sorted(list(slopes2val.keys()))
+    heights = nx.get_node_attributes(graph, 'height')
+    for (u, v, d) in graph.edges.data():
+        h1 = heights[u]
+        h2 = heights[v]
+        angle = heights_to_slope(h1, h2, d['length'])
+        if abs(angle) > 30:
+            graph[u][v]['weight'] = np.inf
+        else:
+            i = binary_search(targets, angle)
+            graph[u][v]['weight'] = slopes2val[targets[i]] * d['length']
         
 def ramanana_time_as_weight(graph: nx.DiGraph, ground):
     """
@@ -228,15 +243,15 @@ def load_graph(filename):
 
 def get_path(graph, start, end):
     """
-    Compute the shortest path from `start` to `end` and path traversal duration.
+    Compute the shortest path from `start` to `end` and path traversal sum of weights.
     """
     p = nx.shortest_path(graph, start, end, weight='weight')
-    t = 0
+    v = 0
     for i in range(len(p) - 1):
         u, v = p[i], p[i+1]
         weight = graph[u][v]['weight']
-        t += weight
-    return p, t
+        v += weight
+    return p, v
 
 def get_path_ramanana(graph, start, end):
     """
@@ -303,6 +318,43 @@ def main2(n, x, y, tot):
     print(len(nx.get_edge_attributes(nG, 'length')))
     print(nx.get_edge_attributes(nG, 'length')[(500, 501)])
     
+def main3(n, x, y, tot):
+    """Adds weight to a graph (torque / dist) and compute paths"""
+    # G = load_graph(f"data/graphs/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
+    slopes2val = {}
+    with open(f"data/weights/torque_per_meter_1.txt", 'r') as f:
+        lines = f.readlines()
+        slopes = lines[0].split(' ')
+        values = lines[1].split(' ')
+        for i in range(len(slopes)):
+            slopes2val[float(slopes[i])] = int(values[i])
+            
+    print("Loading graph.")
+    graph = load_graph(f"data/graphs/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
+    torque_per_meter_as_weight(graph, slopes2val)
+    weights = nx.get_edge_attributes(graph, 'weight')
+    print("Done.")
+    origin_id = 184 * ptools.cols + 467
+    end_points = [[154, 377], [446, 272], [241, 581], [598,94], [826, 889]]
+    backgrounds = ["data/maps/topo-light.png"]
+    print("computing paths")
+    for end_point in end_points:
+        target_id = end_point[1] * ptools.cols + end_point[0]
+        fwd_path_packed, fwd_duration = get_path(graph, origin_id, target_id)
+        bwd_path_packed, bwd_duration = get_path(graph, target_id, origin_id)
+        output_dir = f"data/paths/graph_964_N{n}_real_X{x}Y{y}M{tot}_torque_by_dist/{end_point[0]}_{end_point[1]}"
+        os.makedirs(output_dir, exist_ok=True) # Create the directory if it does not exist
+        gtools.generate_path_on_background(backgrounds, fwd_path_packed, bwd_path_packed, 240, output_dir, weights, N=N)
+        # Create a text file where are written the coordinates of the end point as well as the distance and the duration of the path
+        with open(output_dir + "/path_info.txt", 'w') as f:
+            f.write(f"End point: {end_point}\n")
+            f.write(f"Distance (forward): {gtools.compute_path_distance(fwd_path_packed)}\n")
+            f.write(f"Duration (forward): {fwd_duration}\n")
+            f.write(f"Distance (backward): {gtools.compute_path_distance(bwd_path_packed)}\n")
+            f.write(f"Duration (backward): {bwd_duration}\n")
+    
+            
+    
 def ramanana1(n, x, y, tot):
     """Updating a graph with weight as time from Ramanana's article."""
     ground_dict = {}
@@ -362,9 +414,10 @@ def ramanana2(graph_file):
         
 if __name__ == '__main__':
     # test1()
-    test2()
+    # test2()
     # main1(0, 2, 2, 3)
     # main2(0, 2, 2, 3)
+    main3(0, 2, 2, 3)
     # ramanana1(0, 2, 2, 3)
     # ramanana2("graph_964_N0_real_X2Y2M3_RamananaWeighted.csv")
     
