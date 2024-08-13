@@ -1,14 +1,3 @@
-
-"""
-This file is used to generate graphs from height maps.
-
-The original height map is LA-CARTE-964.tif.
-
-We then discretize it mor by adding N nodes between each point.
-
-Final step is adding the edges. Edges have a maximum manhattan distance.
-"""
-
 import pandas as pd
 import numpy as np
 import networkx as nx
@@ -28,12 +17,14 @@ dim = 1
 N = 0
 
 def get_pixel_in_meter():
+    """Distance between 2 adjacent nodes according to the current discretization."""
     return 4.25 / (N + 1)
 
 def real_plain_distance(i, j, k, l):
     return np.sqrt(((i - k) * get_pixel_in_meter())**2 + ((j - l) * get_pixel_in_meter())**2)
 
 def true_height(value: int) -> float:
+    """Converts height as pixel to meters"""
     return value / 128 * 418
 
 def index_to_node(i, j):
@@ -184,7 +175,7 @@ def get_nearest(i, j):
     Returns the nearest point from the original map (before adding N points between each point).
     """
     if (i % (N+1) == 0) and (j % (N+1) == 0):
-        return (i, j)
+        return (i // (N+1), j // (N+1))
     else:
         lnode = (i, j - j % (N+1))
         rnode = (i, j + (N+1) - j % (N+1))
@@ -193,7 +184,7 @@ def get_nearest(i, j):
         tmp = [lnode, rnode, tnode, bnode]
         d = np.array([real_plain_distance(i, j, *lnode), real_plain_distance(i, j, *rnode), real_plain_distance(i, j, *tnode), real_plain_distance(i, j, *bnode)])
         ind = np.argmin(d)
-        return tmp[ind]
+        return (tmp[ind][0] // (N+1), tmp[ind][1] // (N+1))
 
 def get_ground_data(grid, ground_file, ground_dict):
     dim = grid.shape[0]
@@ -278,6 +269,14 @@ def test1():
     nG = load_graph("data/graphs/test1.csv")
     print(nx.get_node_attributes(nG, 'height'))
     print(nG.edges.data())
+    
+def test2():
+    global N
+    global dim
+    N = 2
+    dim = 964 + N * (964-1)
+    print(dim)
+    print(get_nearest(0, 2889))
 
 def main1(n, x, y, tot):
     """Map to graph test."""
@@ -363,8 +362,9 @@ def ramanana2(graph_file):
         
 if __name__ == '__main__':
     # test1()
+    test2()
     # main1(0, 2, 2, 3)
     # main2(0, 2, 2, 3)
     # ramanana1(0, 2, 2, 3)
-    ramanana2("graph_964_N0_real_X2Y2M3_RamananaWeighted.csv")
+    # ramanana2("graph_964_N0_real_X2Y2M3_RamananaWeighted.csv")
     

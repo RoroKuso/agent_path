@@ -1,8 +1,5 @@
 from PIL import Image
 import numpy as np
-from mpl_toolkits.mplot3d import Axes3D
-import matplotlib.pyplot as plt
-import csv
 import pandas as pd 
 
 N = 0
@@ -66,6 +63,9 @@ def grid_interpolate(grid: np.ndarray, N):
                 
             
 def start(x):
+    """
+    Function called by main. Generated a new height map, with `x` as the discretization parameter.
+    """
     global N
     N = x
     
