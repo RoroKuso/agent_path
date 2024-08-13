@@ -5,13 +5,13 @@ File containing constants and tools to compute power and speed from ground data.
 import numpy as np
 from typing import Tuple
 
-"""Environement's constants"""
+# Environement's constants
 g = 9.81
 pixel_in_meter = 4.25
 max_altitude = 418
 cols = 964
 
-"""Agent's constants"""
+# Agent's constants
 mass = 70 # mass
 L = 1 # leg length
 T =  2 * np.pi * (2 * L / 3 / g) ** 0.5 # natural period  of the leg
@@ -23,7 +23,7 @@ v_precautious = 0.2 # the speed the agent will reach when there's a steep slope
 v_min = 0.005 # the minimum speed reachable by the agent
 
 
-"""PHYSICAL CONVERSION FUNCTIONS"""
+# PHYSICAL CONVERSION FUNCTIONS
 
 def power_to_walk(v: float) -> float:
     """returns the power required to walk at a given speed"""

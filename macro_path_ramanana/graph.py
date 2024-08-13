@@ -138,12 +138,6 @@ def generate_graph(height_file: str, ground_file: str, ground_dict: dict) -> nx.
     return graph
 
 
-# def get_pixel_in_meter(N):
-#     return 4.25 / (N + 1)
-
-# def real_plain_distance(i, j, k, l, N):
-#     return np.sqrt(((i - k) * get_pixel_in_meter(N))**2 + ((j - l) * get_pixel_in_meter(N))**2)
-
 def get_path(graph: nx.DiGraph, start: int, end: int) -> Tuple:
     """Returns shortest path from `start` to `end` in `graph`.
     """
