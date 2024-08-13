@@ -222,7 +222,7 @@ def load_graph(filename):
         for row in reader:
             if len(row) == 2:
                 graph.add_node(int(row[0]), height=float(row[1]))
-            else:
+            elif len(row) == 4:
                 graph.add_edge(int(row[0]), int(row[1]), weight=float(row[2]), length=float(row[3]))
     return graph
 
