@@ -1,4 +1,4 @@
-sphinx-build~=8.0.2
+sphinx~=7.4.7
 numpy~=1.26.2
 Pillow~=10.1.0
 pandas~=2.1.3
