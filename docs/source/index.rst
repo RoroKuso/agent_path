@@ -6,6 +6,10 @@
 agent-path documentation
 ========================
 
+This project contains tools to generate maps and graphs.
+
+It is part of Paul Boursin's Phd.
+
 .. toctree::
    :maxdepth: 4
    :caption: Contents:
