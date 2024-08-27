@@ -1,4 +1,3 @@
-import pandas as pd
 import numpy as np
 import networkx as nx
 import csv
@@ -9,37 +8,58 @@ from PIL import Image
 import macro_path_ramanana.physics_tools as ptools
 import macro_path_ramanana.graph as gtools
 
-MAX_X = 4
-MAX_Y = 4
-MAX_TOT = 5
-MAX_TIME = 9e7
-dim = 1
-N = 0
 
-def get_pixel_in_meter():
-    """Distance between 2 adjacent nodes according to the current discretization."""
+MAX_TIME = 9e+14
+
+def get_pixel_in_meter(N) -> float:
+    """Distance between 2 adjacent(up, down, left or right) nodes according to the discretization parameter `N`."""
     return 4.25 / (N + 1)
 
-def real_plain_distance(i, j, k, l):
-    return np.sqrt(((i - k) * get_pixel_in_meter())**2 + ((j - l) * get_pixel_in_meter())**2)
+def real_plain_distance(i, j, k, l, N) -> float:
+    """Distance between nodes nodes at `(i, j)` and `(k, l)` without considering height according to the discretization parameter `N`"""
+    return np.sqrt(((i - k) * get_pixel_in_meter(N))**2 + ((j - l) * get_pixel_in_meter(N))**2)
 
 def true_height(value: int) -> float:
     """Converts height as pixel to meters"""
     return value / 128 * 418
 
-def index_to_node(i, j):
+def index_to_node(i, j, dim) -> int:
+    """Converts 2D coordinates from a `dim x dim` grid to a node id."""
     return i * dim + j
 
-def node_to_index(u):
+def node_to_index(u, dim) -> int:
+    """Converts a node id to 2D coordinates in a `dim x dim` grid."""
     return (u // dim, u % dim)
 
-def heights_to_slope(a, b, d):
+def heights_to_slope(a, b, d) -> float:
+    """
+    Computes the angle of a slope.
+    
+    Parameters
+    ----------
+    a : float
+        Height of the from node.
+    b : float
+        Height of the to node.
+    d : float
+        Distance in meter between the nodes.
+    """
     rad = np.arcsin((b-a)/d)
     ret = rad * 180 / np.pi
     return ret
 
-def generate_edges():
-    """Returns a list of all possible edges shape as a list of vectors."""
+def generate_edges(MAX_X, MAX_Y, MAX_TOT):
+    """Returns a list of all possible edges shape as a list of vectors.
+    
+    Parameters
+    ----------
+    MAX_X : int
+        Maximum pixel distance along x axis.
+    MAX_Y : int
+        Maximum pixel distance along y axis.
+    MAX_TOT : int
+        Maximum length of the edge(using manhattan distance).
+    """
     ret = []
     for x in range(MAX_X + 1):
         for y in range(MAX_Y + 1):
@@ -50,7 +70,7 @@ def generate_edges():
     return ret
             
         
-def add_edges(graph: nx.MultiDiGraph, edges, u):
+def add_edges(graph: nx.MultiDiGraph, edges, u, N, dim):
     """
     Add all possible edges from `u` to `graph`, using known possible edges.
     
@@ -62,23 +82,27 @@ def add_edges(graph: nx.MultiDiGraph, edges, u):
         Edges shape (x incr, y incr).
     u: int
         Starting node.
+    N : int
+        Discretization parameters.
+    dim : int
+        Size of the map.
     """
-    i, j = node_to_index(u)
+    i, j = node_to_index(u, dim)
     for (x, y) in edges:
         if (i + x < dim) and (j + y < dim):
-            v = index_to_node(i + x, j + y)
+            v = index_to_node(i + x, j + y, dim)
             z_length = graph.nodes[u]['height'] - graph.nodes[v]['height']
-            length = np.sqrt((x * get_pixel_in_meter())**2 + (y * get_pixel_in_meter())**2 + z_length**2)
+            length = np.sqrt((x * get_pixel_in_meter(N))**2 + (y * get_pixel_in_meter(N))**2 + z_length**2)
             graph.add_edge(u, v, length=length)
             graph.add_edge(v, u, length=length)
         if (i + x < dim) and (0 < j - y):
-            v = index_to_node(i + x, j - y)
+            v = index_to_node(i + x, j - y, dim)
             z_length = graph.nodes[u]['height'] - graph.nodes[v]['height']
-            length = np.sqrt((x * get_pixel_in_meter())**2 + (y * get_pixel_in_meter())**2 + z_length**2)
+            length = np.sqrt((x * get_pixel_in_meter(N))**2 + (y * get_pixel_in_meter(N))**2 + z_length**2)
             graph.add_edge(v, u, length=length)
             graph.add_edge(u, v, length=length)
         
-def generate_graph(grid):
+def generate_graph(grid, N, x, y, m):
     """
     Initizialize a graph from a height map.
     
@@ -86,21 +110,29 @@ def generate_graph(grid):
     ----------
     grid: np.ndarray
         2D Height map.
+    N : int
+        Discretization parameter.
+    x : int
+        Maximum pixel distance along x axis.
+    y : int
+        Maximum pixel distance along y axis.
+    m : int
+        Maximum length of the edge(using manhattan distance).
     """
     graph = nx.DiGraph()
+    dim = grid.shape[0]
     N_tot = dim * dim
-    edges = generate_edges()
+    edges = generate_edges(x, y, m)
     for u in range(N_tot):
-        graph.add_node(u, height=grid[*node_to_index(u)])
+        graph.add_node(u, height=grid[*node_to_index(u, dim)])
     for u in range(N_tot):
         if u % 10000 == 0:
             print(f"step u = {u} out of {N_tot}")
-        add_edges(graph, edges, u)
-        # _add_edges_from(graph, grid, u)
+        add_edges(graph, edges, u, N, dim)
     return graph
 
 
-def binary_search(l, x):
+def binary_search(l, x) -> int:
     """Find the element of `l` that is the closest to `x`."""
     n = len(l)
     if n == 0:
@@ -120,24 +152,16 @@ def binary_search(l, x):
         return j
     
 
-def time_as_weight(graph: nx.DiGraph, slopes: dict):
+def time_as_weight(graph: nx.DiGraph, slopes2val: dict):
     """
     Updates the edges of `graph`. Weights are updated according to the slope of the edge.
     
-    For now, let's consider that `slopes` contains time per meter for different slopes.
-    """
-    targets = sorted(list(slopes.keys()))
-    heights = nx.get_node_attributes(graph, 'height')
-    for (u, v, d) in graph.edges.data():
-        h1 = heights[u]
-        h2 = heights[v]
-        angle = heights_to_slope(h1, h2, d['length'])
-        i = binary_search(targets, angle)
-        graph[u][v]['weight'] = slopes[targets[i]] * d['length']
-        
-def torque_per_meter_as_weight(graph: nx.DiGraph, slopes2val: dict):
-    """
-    Updates the weight of the edges with torque / distance.
+    Parameters
+    ----------
+    graph : networkx.DiGraph
+        Graph to update.
+    slopes2val : Dict
+        Contains average speed when going along a path of different slopes.
     """
     targets = sorted(list(slopes2val.keys()))
     heights = nx.get_node_attributes(graph, 'height')
@@ -146,12 +170,35 @@ def torque_per_meter_as_weight(graph: nx.DiGraph, slopes2val: dict):
         h2 = heights[v]
         angle = heights_to_slope(h1, h2, d['length'])
         if abs(angle) > 30:
-            graph[u][v]['weight'] = np.inf
+            graph[u][v]['weight'] = MAX_TIME
+        else:
+            i = binary_search(targets, angle)
+            graph[u][v]['weight'] =  d['length'] / slopes2val[targets[i]]
+        
+def torque_per_meter_as_weight(graph: nx.DiGraph, slopes2val: dict):
+    """
+    Updates the weight of the edges with torque / distance computed from Paul RL agent.
+    
+    Parameters
+    ----------
+    graph : networkx.DiGraph
+        Graph to update.
+    slopes2val : Dict
+        Contains the torque per meter value for each angle between 2 points.
+    """
+    targets = sorted(list(slopes2val.keys()))
+    heights = nx.get_node_attributes(graph, 'height')
+    for (u, v, d) in graph.edges.data():
+        h1 = heights[u]
+        h2 = heights[v]
+        angle = heights_to_slope(h1, h2, d['length'])
+        if abs(angle) > 30:
+            graph[u][v]['weight'] = MAX_TIME
         else:
             i = binary_search(targets, angle)
             graph[u][v]['weight'] = slopes2val[targets[i]] * d['length']
         
-def ramanana_time_as_weight(graph: nx.DiGraph, ground):
+def ramanana_time_as_weight(graph: nx.DiGraph, ground, N, dim):
     """
     Updates the weight(as time) of `graph` using Ramanana's paper. It needs data about the ground to compute dissipated power.
     
@@ -161,13 +208,17 @@ def ramanana_time_as_weight(graph: nx.DiGraph, ground):
         The graph to update.
     ground: np.ndarray
         A 2D grid containing ground data for every node.
+    N : int
+        Discretization parameters.
+    dim : int
+        Size of the map.
     """
     nodes_height = nx.get_node_attributes(graph, 'height')
     for (u, v, _) in graph.edges.data():
-        i, j = node_to_index(u)
-        k, l = node_to_index(v)
+        i, j = node_to_index(u, dim)
+        k, l = node_to_index(v, dim)
         step_dist = 1 # Arbitrary constant in Ramanana's code, distance reached for 1 human step.
-        plain_dist = real_plain_distance(i, j, k, l) # Real distance in meter from a 2D pov.
+        plain_dist = real_plain_distance(i, j, k, l, N) # Real distance in meter from a 2D pov.
         delta_z = (nodes_height[u] - nodes_height[v]) * step_dist / plain_dist
         
         # Compare Young modulus
@@ -185,9 +236,18 @@ def ramanana_time_as_weight(graph: nx.DiGraph, ground):
             
         graph[u][v]['weight'] = time
           
-def get_nearest(i, j):
+def get_nearest(i, j, N):
     """
-    Returns the nearest point from the original map (before adding N points between each point).
+    Returns the nearest point from the original map (before adding `N` points between each point).
+    
+    Parameters
+    ----------
+    i : int
+        First axis coordinate.
+    j : int
+        Second axis coordinate.
+    N : int
+        Discretization parameter.
     """
     if (i % (N+1) == 0) and (j % (N+1) == 0):
         return (i // (N+1), j // (N+1))
@@ -197,18 +257,32 @@ def get_nearest(i, j):
         tnode = (i - i % (N+1), j)
         bnode = (i + (N+1) - i % (N+1), j)
         tmp = [lnode, rnode, tnode, bnode]
-        d = np.array([real_plain_distance(i, j, *lnode), real_plain_distance(i, j, *rnode), real_plain_distance(i, j, *tnode), real_plain_distance(i, j, *bnode)])
+        d = np.array([real_plain_distance(i, j, *lnode, N), real_plain_distance(i, j, *rnode, N), real_plain_distance(i, j, *tnode, N), real_plain_distance(i, j, *bnode, N)])
         ind = np.argmin(d)
         return (tmp[ind][0] // (N+1), tmp[ind][1] // (N+1))
 
-def get_ground_data(grid, ground_file, ground_dict):
+def get_ground_data(grid, ground_file, ground_dict, N):
+    """
+    Returns ground data for all nodes.
+    
+    Paramaters
+    ----------
+    grid : np.ndarray
+        Height map
+    ground_file : str
+        Stores a color map, classifying each node.
+    ground_dict : dict
+        Stores data for each ground class.
+    N : int
+        Discretization parameter.
+    """
     dim = grid.shape[0]
     ground_data = np.empty((dim, dim, 2), dtype=np.float32)
     ground_img = Image.open(ground_file)
     pixels_ground = np.array(ground_img)
     for i in range(dim):
         for j in range(dim):
-            ref = get_nearest(i, j)
+            ref = get_nearest(i, j, N)
             data = gtools.pixel_to_ground_data(ground_dict, pixels_ground[ref[0], ref[1]])
             ground_data[i, j][0] = data[0]
             ground_data[i, j][1] = data[1]
@@ -218,8 +292,8 @@ def save_graph(G: nx.DiGraph, filename):
     """Save a graph in csv format."""
     with open(f"{filename}", "w") as f:
         writer = csv.writer(f, delimiter=' ')
-        for (u, h) in nx.get_node_attributes(G, 'height', default=-1).items():
-            if h == -1:
+        for (u, h) in nx.get_node_attributes(G, 'height').items():
+            if h == None:
                 print(f"Error in save_graph(): missing height for node {u}")
                 exit()
             writer.writerow([u, round(h, 2)])
@@ -246,14 +320,14 @@ def get_path(graph, start, end):
     Compute the shortest path from `start` to `end` and path traversal sum of weights.
     """
     p = nx.shortest_path(graph, start, end, weight='weight')
-    v = 0
+    ret = 0
     for i in range(len(p) - 1):
         u, v = p[i], p[i+1]
         weight = graph[u][v]['weight']
-        v += weight
-    return p, v
+        ret += weight
+    return p, ret
 
-def get_path_ramanana(graph, start, end):
+def get_path_ramanana(graph, start, end, N, dim):
     """
     Compute the shortest path from `start` to `end` and path traversal duration.
     
@@ -264,160 +338,79 @@ def get_path_ramanana(graph, start, end):
     for i in range(len(p) - 1):
         u, v = p[i], p[i+1]
         weight = graph[u][v]['weight']
-        dist = real_plain_distance(*node_to_index(u), *node_to_index(v))
+        dist = real_plain_distance(*node_to_index(u, dim), *node_to_index(v, dim), N)
         if dist / weight <= ptools.v_precautious:
             weight = dist / ptools.v_precautious
         t += weight
     return p, t
 
-def test1():
-    G = nx.DiGraph(length=0.0, weight=0)
-    G.add_edge(0, 1, weight = 3, length = 9)
-    G.add_edge(1, 0, weight = -3, length = 9)
-    G.add_edge(0, 2, weight = 6, length = 10)
-    G.add_edge(2, 0, weight = -6, length = 10)
-    G.add_node(0, height=1)
-    G.add_node(1, height=2)
-    G.add_node(2, height=3)
-    
-    save_graph(G, "data/graphs/test1.csv")
-    nG = load_graph("data/graphs/test1.csv")
-    print(nx.get_node_attributes(nG, 'height'))
-    print(nG.edges.data())
-    
-def test2():
-    global N
-    global dim
-    N = 2
-    dim = 964 + N * (964-1)
-    print(dim)
-    print(get_nearest(0, 2889))
-
-def main1(n, x, y, tot):
-    """Map to graph test."""
-    global N
-    global dim
-    global MAX_X
-    global MAX_Y
-    global MAX_TOT
-    N = n
-    MAX_X = x
-    MAX_Y = y
-    MAX_TOT = tot
-    df = pd.read_csv(f"data/maps/height_map_964_N{N}_real.csv")
-    grid = df.to_numpy()
-    dim = grid.shape[0]
-    print(f"shape is {grid.shape}")
-    graph = generate_graph(grid)
-    # _save_graph(graph, "height_map_964_N0_real.json")
-    save_graph(graph, f"data/graphs/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
-
-def main2(n, x, y, tot):
-    """Loading graph test."""
-    nG = load_graph(f"data/graphs/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
-    print(len(nx.get_edge_attributes(nG, 'length')))
-    print(nx.get_edge_attributes(nG, 'length')[(500, 501)])
-    
-def main3(n, x, y, tot):
-    """Adds weight to a graph (torque / dist) and compute paths"""
-    # G = load_graph(f"data/graphs/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
-    slopes2val = {}
-    with open(f"data/weights/torque_per_meter_1.txt", 'r') as f:
-        lines = f.readlines()
-        slopes = lines[0].split(' ')
-        values = lines[1].split(' ')
-        for i in range(len(slopes)):
-            slopes2val[float(slopes[i])] = int(values[i])
-            
-    print("Loading graph.")
-    graph = load_graph(f"data/graphs/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
-    torque_per_meter_as_weight(graph, slopes2val)
-    weights = nx.get_edge_attributes(graph, 'weight')
-    print("Done.")
-    origin_id = 184 * ptools.cols + 467
-    end_points = [[154, 377], [446, 272], [241, 581], [598,94], [826, 889]]
-    backgrounds = ["data/maps/topo-light.png"]
-    print("computing paths")
-    for end_point in end_points:
-        target_id = end_point[1] * ptools.cols + end_point[0]
-        fwd_path_packed, fwd_duration = get_path(graph, origin_id, target_id)
-        bwd_path_packed, bwd_duration = get_path(graph, target_id, origin_id)
-        output_dir = f"data/paths/graph_964_N{n}_real_X{x}Y{y}M{tot}_torque_by_dist/{end_point[0]}_{end_point[1]}"
-        os.makedirs(output_dir, exist_ok=True) # Create the directory if it does not exist
-        gtools.generate_path_on_background(backgrounds, fwd_path_packed, bwd_path_packed, 240, output_dir, weights, N=N)
-        # Create a text file where are written the coordinates of the end point as well as the distance and the duration of the path
-        with open(output_dir + "/path_info.txt", 'w') as f:
-            f.write(f"End point: {end_point}\n")
-            f.write(f"Distance (forward): {gtools.compute_path_distance(fwd_path_packed)}\n")
-            f.write(f"Duration (forward): {fwd_duration}\n")
-            f.write(f"Distance (backward): {gtools.compute_path_distance(bwd_path_packed)}\n")
-            f.write(f"Duration (backward): {bwd_duration}\n")
-    
-            
-    
-def ramanana1(n, x, y, tot):
-    """Updating a graph with weight as time from Ramanana's article."""
-    ground_dict = {}
-    ground_dict[-1] = [1,1, "Default"]
-    ground_dict[str(np.array([255, 255, 255]))] = [5e5, 1, "Alluvions"]
-    ground_dict[str(np.array([255, 198, 0]))] = [20e9, 10, "Calcaire"]
-    ground_dict[str(np.array([51, 200, 35]))] = [10e9, 10, "Marne"]
-    ground_dict[str(np.array([213, 29, 29]))] = [5e7, 3, "Eboulis"]
-    ground_dict[str(np.array([0, 0, 0]))] = [-1e2, 1, "Eau profonde"]
-    ground_dict[str(np.array([0, 216, 255]))] = [2e5, 1, "Eau peu profonde"]
-    global N
-    global dim
-    N = n
-    print("Loading map")
-    df = pd.read_csv(f"data/maps/height_map_964_N{n}_real.csv")
-    grid = df.to_numpy()
-    print("Done")
-    dim = grid.shape[0]
-    print("Loading graph")
-    nG = load_graph(f"data/graphs/graph_964_N{n}_real_X{x}Y{y}M{tot}.csv")
-    print("Done")
-    ground_data = get_ground_data(grid, "data/maps/sol-couleur.png", ground_dict)
-    print("Computing weights")
-    ramanana_time_as_weight(nG, ground_data)
-    print("Done")
-    save_graph(nG, f"data/graphs/graph_964_N{n}_real_X{x}Y{y}M{tot}_RamananaWeighted.csv")
+def path_distance(graph, path, N, dim) -> float:
+    """Computes the total length of a path with format [u1, u2, u3, ...], the nodes in order of traversal."""
+    tot = 0
+    heights = nx.get_node_attributes(graph, 'height')
+    for t in range(len(path)-1):
+        u = path[t]
+        v = path[t+1]
+        i, j = node_to_index(u, dim)
+        k, l = node_to_index(v, dim)
+        x, y, z = (i - k) * get_pixel_in_meter(N), (j - l) * get_pixel_in_meter(N), (heights[u] - heights[v])
+        tot += np.sqrt(x**2 + y**2 + z**2)
+    return tot
         
+def load_image(path):
+    """Load an image as a RGB array."""
+    img = Image.open(path).convert('RGB')
+    # if it is not already in RGB, transform the image to RGB by copying the first channel 3 times
+    if len(img.getbands()) == 1:
+        img = np.stack((img, img, img), axis=2)
+    # if the image is RGBA make t RGB
+    img = np.array(img).astype(np.uint32)
+    return img
+
+def path_viz(background, path, output_path=None, color=[255, 0, 0]):
+    """Print the path to a png map and save it.
     
-def ramanana2(graph_file):
+    Parameters
+    ----------
+    background : numpy.ndarray
+        RGB array for the background.
+    path : list
+        A list of successive nodes.
     """
-    Computing backward and forward paths for different end points.
-    """
-    print("Loading graph.")
-    graph = load_graph(f"data/graphs/{graph_file}")
-    weights = nx.get_edge_attributes(graph, 'weight')
-    print("Done.")
-    origin_id = 184 * ptools.cols + 467
-    end_points = [[154, 377], [446, 272], [241, 581], [598,94], [826, 889]]
-    backgrounds = ["data/maps/LA-CARTE-964.tif", "data/maps/topo-light.png"]
-    for end_point in end_points:
-        target_id = end_point[1] * ptools.cols + end_point[0]
-        print("forward path")
-        fwd_path_packed, fwd_duration = get_path_ramanana(graph, origin_id, target_id)
-        print("Done\n Backard path")
-        bwd_path_packed, bwd_duration = get_path_ramanana(graph, target_id, origin_id)
-        print("Done")
-        output_dir = f"data/paths/{graph_file}/{end_point[0]}_{end_point[1]}"
-        os.makedirs(output_dir, exist_ok=True) # Create the directory if it does not exist
-        gtools.generate_path_on_background(backgrounds, fwd_path_packed, bwd_path_packed, 240, output_dir, weights)
-        # Create a text file where are written the coordinates of the end point as well as the distance and the duration of the path
-        with open(output_dir + "/path_info.txt", 'w') as f:
-            f.write(f"End point: {end_point}\n")
-            f.write(f"Distance (forward): {gtools.compute_path_distance(fwd_path_packed)}\n")
-            f.write(f"Duration (forward): {fwd_duration}\n")
-            f.write(f"Distance (backward): {gtools.compute_path_distance(bwd_path_packed)}\n")
-            f.write(f"Duration (backward): {bwd_duration}\n")
-        
-if __name__ == '__main__':
-    # test1()
-    # test2()
-    # main1(0, 2, 2, 3)
-    # main2(0, 2, 2, 3)
-    main3(0, 2, 2, 3)
-    # ramanana1(0, 2, 2, 3)
-    # ramanana2("graph_964_N0_real_X2Y2M3_RamananaWeighted.csv")
-    
+    radius = 1
+    rows, cols, _ = background.shape
+    path_matrix = np.zeros((rows, cols, 3))
+    for i, node_id in enumerate(path[:-1]):
+        row, col = node_to_index(node_id)
+        path_color = color
+        path_matrix[row, col] = path_color
+
+        # Mark the origin and the end of the path by a big square:
+        if i == 0 or i == len(path) - 2:
+            for j in range(-radius * 4, radius * 4 + 1):
+                for k in range(-radius * 4, radius * 4 + 1):
+                    if 0 <= row + j < rows and 0 <= col + k < cols:
+                        path_matrix[row + j, col + k] = color
+
+    # Replace the background with the path where the path_img is not black
+    path_img = np.any(path_matrix != [0, 0, 0], axis=-1)
+    result = np.where(path_img[..., None], path_matrix, background)
+
+    img = Image.fromarray(result.astype(np.uint8))
+    if output_path is not None:
+        img.save(output_path)
+
+def show_path(fwd_path, bwd_path, background, output_dir, N):
+    """Saves paths in a file, printed over a background"""
+    bg = load_image(background)
+    dim = bg.shape[0] + N * (bg.shape[0]-1)
+    new_bg = np.zeros((dim, dim, 3))
+    for i in range(dim):
+        for j in range(dim):
+            row = i // (N+1)
+            col = j // (N+1)
+            new_bg[i, j] = bg[row, col]
+    ospath = os.path.join(output_dir, os.path.basename(background).split('.')[0] + '.png')
+    path_viz(new_bg, bwd_path, ospath, color=[0, 0, 255])
+    new_bg = load_image(ospath)
+    path_viz(new_bg, fwd_path, ospath, color=[255, 0, 0])

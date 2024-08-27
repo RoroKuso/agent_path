@@ -2,10 +2,11 @@ from PIL import Image
 import numpy as np
 import pandas as pd 
 
-N = 0
+ref_res = 964
 filename = "data/maps/LA-CARTE-964.tif"
 
 def true_height(value: int) -> float:
+    """Converts height as pixel to meters"""
     return value / 128 * 418
 
 def center_coord(u, v):
@@ -66,12 +67,10 @@ def start(x):
     """
     Function called by main. Generated a new height map, with `x` as the discretization parameter.
     """
-    global N
     N = x
     
     height_img = Image.open(filename).convert('L')
     pixels_height = true_height(np.array(height_img))
-    # pixels_height = (np.arange(9) + 1).reshape(3, 3)
 
     n = pixels_height.shape[0]
     if n == 1:
