@@ -19,7 +19,7 @@ See documentation for more details about the algorithm and approximations used i
 - [First work: Ramanana's model](#first-work-ramananas-model)
 - [Conventions](#file-naming-convention)
 - [Tutorial](#tutorial)
-- [Acknoledgement](#acknoledgements)
+- [Acknowledgement](#acknowledgements)
 
 
 ## Documentation
