@@ -122,7 +122,7 @@ Nonetheless, if you have weight values to store, do it in `data/weights/`.
 For this exemple
 
 
-## Acknoledgements
+## Acknowledgements
 
 - Marie-Paule Cani, supervisor, head VISTA team from LIX lab(Laboratoire d'Informatique de l'école polytechnique).
 - Paul Boursin, co-supervisor, phd student at LIX.
