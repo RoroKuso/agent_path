@@ -1,7 +1,7 @@
 # Intro
 
 The main goal of this project is to compare accurate trajectories of pre historic humans
-with computed one.
+with computed one. This is a side project done alongside my internship at LIX, where we tried to train a RL agent to walk efficiently.
 
 Considering that pre historic humans had to save energy while going from one place to another, we hope our model and approaches are able to take it into account.
 
